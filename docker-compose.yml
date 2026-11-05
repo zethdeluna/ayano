@@ -1,0 +1,52 @@
+services:
+  db:
+    container_name: issue-tracker-db
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: issue_tracker
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d issue_tracker"]
+      interval: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+
+
+# Build container and start: 
+#   docker compose up -d
+# 
+# Remove container and volumes: 
+#   docker compose down -v
+# 
+# Check container: 
+#   docker compose ps
+# 
+# Check container db logs: 
+#   docker compose logs db
+# 
+# Open a SQL prompt inside the database: 
+#   docker compose exec db psql -U postgres -d issue_tracker
+# 
+#   Prompt commands:
+#     Command       Shows
+#     \l            All databases. (issue_tracker should be in the list)
+#     \dt           Tables in the curent database
+#     \d items      One table's columns, constraints, and indexes (in this case, the items table)
+#     \di           All indexes
+#     \q            Quits prompter
+# 
+# Run the schema (from the folder that contains schema.sql):
+#   docker compose exec -T db psql -U postgres -d issue_tracker -v ON_ERROR_STOP=1 -1 < schema.sql
+# 
+#   -T (required here): Without it, Compose tries to attach a terminal and doesn't accept piped input.
+#   -1: runs the entire file as one transaction. If any statment fails, everything rolls back, so you 
+#       never end up with half a schema, and you can fix the error and rerun without resetting.
+#   ON_ERROR_STOP=1: the output ends at the first error. Fix only that one, then rerun. Because of the 
+#                    -1, the earlier statements were rolled back, so there's no cleanup.
