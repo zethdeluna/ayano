@@ -113,3 +113,11 @@ app.get("/api/items/:id", async (req, res) => {
 app.listen(Number(process.env.PORT ?? 3000), () => {
 	console.log("API listening");
 });
+
+/**
+ * For quick tests in terminal: 
+ * 	curl [insert endpoint url here]
+ * 
+ * Example:
+ * 	curl http://localhost:3000/api/items/00000000-0000-0000-0000-0000000000d1
+ */
