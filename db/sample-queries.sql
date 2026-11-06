@@ -88,6 +88,52 @@ WHERE c.item_id = '00000000-0000-0000-0000-0000000000d1'
 ORDER BY c.created_at ASC;
 
 
+BEGIN
+
+	-- Get item details
+	SELECT 
+		i.id				AS item_id, 
+		i.title, 
+		i.body				AS item_body, 
+		i.priority, 
+		i.due_date, 
+		i.created_at, 
+		i.updated_at, 
+		i.deleted_at, 
+		p.id				AS project_id, 
+		p.name				AS project_name, 
+		creator.username	AS created_by_name, 
+		assignee.username	AS assignee_name, 
+		updater.username	AS updated_by_name, 
+		deleter.username	AS deleted_by_name
+	FROM items i
+	JOIN projects p 
+		ON p.id = i.project_id 
+		AND p.workspace_id = i.workspace_id
+	JOIN users creator ON creator.id = i.created_by 
+	LEFT JOIN users assignee ON assignee.id = i.assigned_to 
+	LEFT JOIN users updater ON updater.id = i.updated_by 
+	LEFT JOIN users deleter ON deleter.id = i.deleted_by 
+	WHERE i.id = '00000000-0000-0000-0000-0000000000d1' 
+		AND i.workspace_id = '00000000-0000-0000-0000-0000000000b1' 
+	;
+
+	-- Get item's comments
+	SELECT 
+		c.id, 
+		c.body, 
+		c.created_at, 
+		u.username		AS author 
+	FROM comments c
+	JOIN users u ON u.id = c.author_id 
+	JOIN items i ON i.id = c.item_id 
+	WHERE c.item_id = '00000000-0000-0000-0000-0000000000d1' 
+		AND i.workspace_id = '00000000-0000-0000-0000-0000000000b1' 
+		AND c.deleted_at IS NULL 
+	ORDER BY c.created_at ASC;
+
+END;
+
 
 
 -- Trash page

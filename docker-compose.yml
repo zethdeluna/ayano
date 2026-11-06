@@ -1,17 +1,17 @@
 services:
   db:
-    container_name: issue-tracker-db
+    container_name: ayano-db
     image: postgres:16
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: issue_tracker
+      POSTGRES_DB: ayano
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d issue_tracker"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ayano"]
       interval: 5s
       retries: 5
 
@@ -32,7 +32,7 @@ volumes:
 #   docker compose logs db
 # 
 # Open a SQL prompt inside the database: 
-#   docker compose exec db psql -U postgres -d issue_tracker
+#   docker compose exec db psql -U postgres -d ayano
 # 
 #   Prompt commands:
 #     Command       Shows
@@ -43,7 +43,7 @@ volumes:
 #     \q            Quits prompter
 # 
 # Run the schema (from the folder that contains schema.sql):
-#   docker compose exec -T db psql -U postgres -d issue_tracker -v ON_ERROR_STOP=1 -1 < schema.sql
+#   docker compose exec -T db psql -U postgres -d ayano -v ON_ERROR_STOP=1 -1 < schema.sql
 # 
 #   -T (required here): Without it, Compose tries to attach a terminal and doesn't accept piped input.
 #   -1: runs the entire file as one transaction. If any statment fails, everything rolls back, so you 
