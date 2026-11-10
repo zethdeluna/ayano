@@ -7,10 +7,11 @@
 -- ********************************************************************************
 CREATE TABLE users (
 	id				uuid PRIMARY KEY DEFAULT gen_random_uuid(), 
-	username		text NOT NULL, 
-	email			text NOT NULL, 
-	password_hash	text NOT NULL, 
-	created_at		timestamptz NOT NULL DEFAULT now()
+	username			text NOT NULL, 
+	email				text NOT NULL, 
+	password_hash		text NOT NULL, 
+	created_at			timestamptz NOT NULL DEFAULT now(), 
+	email_verified_at	timestamptz 
 );
 
 -- For username and email: apply case-insensitive uniqueness
@@ -177,3 +178,68 @@ CREATE TABLE notifications (
 
 -- Organize notifications by user (inboxes)
 CREATE INDEX inboxes ON notifications (recipient_id, created_at DESC) WHERE deleted_at IS NULL;
+
+
+
+-- ********************************************************************************
+-- SESSIONS
+-- 
+-- Tracks active login sessions for users (while session is open, user doesn't need 
+-- to login again).
+-- • One row per active user 
+-- • id is the SHA-256 hash of the cookie token, never the token itself
+-- • Each session should expire 30 days after user's last activity
+-- ********************************************************************************
+CREATE TABLE sessions (
+	id			text PRIMARY KEY, 
+	user_id		uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE, 
+	create_at	timestamptz NOT NULL DEFAULT now(), 
+	expires_at	timestamptz NOT NULL 
+);
+
+-- Organize sessions by user
+CREATE INDEX user_sessions ON sessions (user_id);
+
+
+-- ********************************************************************************
+-- AUTH_TOKENS
+-- 
+-- One-time tokens for email verification and password reset (hashes only).
+-- ********************************************************************************
+CREATE TABLE auth_tokens (
+	token_hash	text PRIMARY KEY, 
+	user_id		uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE, 
+	purpose		text NOT NULL CHECK (purpose IN ('verify_email', 'reset_password')), 
+	created_at	timestamptz NOT NULL DEFAULT now(), 
+	expires_at	timestamptz NOT NULL, 
+	use_at		timestamptz
+);
+
+-- Organize tokens by user and purpose
+CREATE INDEX token_users ON auth_tokens (user_id, purpose);
+
+
+-- ********************************************************************************
+-- WORKSPACE_INVITES
+-- 
+-- 	Invites: one row per code or link; only the has of the code is stored
+-- • Optionally add email (only user with verified email is invited to this workspace)
+-- • Invite code expires after a set amount of time
+-- • Creator can decide how many times the code can be used and can cancel the code
+-- ********************************************************************************
+CREATE TABLE workspace_invites (
+	id				uuid PRIMARY KEY DEFAULT gen_random_uuid(), 
+	workspace_id	uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, 
+	code_hash		text NOT NULL UNIQUE, 
+	email			text, 
+	created_by		timestamptz NOT NULL DEFAULT now(), 
+	created_at		timestamptz NOT NULL DEFAULT now(), 
+	expires_at		timestamptz NOT NULL, 
+	revoked_at		timestamptz, 
+	max_uses		integer NOT NULL DEFAULT 1 CHECK (max_uses > 0), 
+	uses_count		integer NOT NULL DEFAULT 0, 
+	CHECK (uses_count <= max_uses)
+);
+
+-- Organize invites by workspace
+CREATE INDEX invites_by_workspace ON workspace_invites (workspace_id);
