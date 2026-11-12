@@ -1,9 +1,9 @@
 -- Seed data (initialize example data)
 
-INSERT INTO users (id, username, email, password_hash) VALUES
-  ('00000000-0000-0000-0000-0000000000a1', 'zeth',  'zeth@example.com',  'x'),
-  ('00000000-0000-0000-0000-0000000000a2', 'alice', 'alice@example.com', 'x'),
-  ('00000000-0000-0000-0000-0000000000a3', 'bob',   'bob@example.com',   'x');
+INSERT INTO users (id, username, email, password_hash, email_verified_at) VALUES
+  ('00000000-0000-0000-0000-0000000000a1', 'zeth',  'zeth@example.com',  '$argon2id$v=19$m=19456,t=2,p=1$A2swMkm8msfOzzzgf8NjaA$/f3fbE9q0e5wz0feuZaC/W49DneG+9KzlafVp4Yiqw8', now()),
+  ('00000000-0000-0000-0000-0000000000a2', 'alice', 'alice@example.com', '$argon2id$v=19$m=19456,t=2,p=1$FA0lEu6gxlgosLYcjfCGLA$N/g5EBxL4SyQMed4IbH1FqrjauTkLmJhJft0KrUVbA0', now()),
+  ('00000000-0000-0000-0000-0000000000a3', 'bob',   'bob@example.com',   '$argon2id$v=19$m=19456,t=2,p=1$rEBtdNiXRB91/eVaQTunFA$piq1cJ775zw36p8DRV6uyQIVo7ofETu0r/aUlkr/PJw', now());
 
 INSERT INTO workspaces (id, name) VALUES
   ('00000000-0000-0000-0000-0000000000b1', 'Workspace One'),
