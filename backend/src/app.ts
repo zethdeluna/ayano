@@ -2,7 +2,9 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { globalLimiter } from "./middleware/rateLimits.js";
 import { pool } from "./db/pool.js";
+import { originCheck } from "./middleware/originCheck.js";
 import { itemsRouter } from "./routes/items.js";
+import { authRouter } from "./routes/auth.js";
 
 export function createApp() {
 
@@ -12,9 +14,11 @@ export function createApp() {
 	app.use(globalLimiter);
 	app.use(express.json({ limit: "100kb" }));
 	app.use(cookieParser());
+	app.use(originCheck);
 
-	// Routes
+	// Routes -----------------------
 
+	// Health check
 	app.get("/api/health", async (_req, res) => {
 
 		try {
@@ -27,7 +31,9 @@ export function createApp() {
 
 	});
 
+	app.use("/api/auth", authRouter);
 	app.use("/api/items", itemsRouter);
+	
 
 	// Catch-all error
 	app.use("/api", (_req, res) => {
