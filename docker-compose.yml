@@ -43,7 +43,7 @@ volumes:
 #     \q            Quits prompter
 # 
 # Run the schema (from the folder that contains schema.sql):
-#   docker compose exec -T db psql -U postgres -d ayano -v ON_ERROR_STOP=1 -1 < schema.sql
+#   docker compose exec -T db psql -U postgres -d ayano -v ON_ERROR_STOP=1 -1 < db/schema.sql
 # 
 #   -T (required here): Without it, Compose tries to attach a terminal and doesn't accept piped input.
 #   -1: runs the entire file as one transaction. If any statment fails, everything rolls back, so you 

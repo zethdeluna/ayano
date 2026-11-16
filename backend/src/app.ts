@@ -5,6 +5,8 @@ import { pool } from "./db/pool.js";
 import { originCheck } from "./middleware/originCheck.js";
 import { itemsRouter } from "./routes/items.js";
 import { authRouter } from "./routes/auth.js";
+import { isProd } from "./config.js";
+import { debugRouter } from "./routes/debug.js";
 
 export function createApp() {
 
@@ -32,6 +34,7 @@ export function createApp() {
 	});
 
 	app.use("/api/auth", authRouter);
+	if ( !isProd ) app.use("/api/debug", debugRouter); // TEMPORARY
 	app.use("/api/items", itemsRouter);
 	
 

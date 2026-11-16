@@ -212,7 +212,7 @@ CREATE TABLE auth_tokens (
 	purpose		text NOT NULL CHECK (purpose IN ('verify_email', 'reset_password')), 
 	created_at	timestamptz NOT NULL DEFAULT now(), 
 	expires_at	timestamptz NOT NULL, 
-	use_at		timestamptz
+	used_at		timestamptz
 );
 
 -- Organize tokens by user and purpose

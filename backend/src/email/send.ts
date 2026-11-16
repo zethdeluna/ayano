@@ -15,3 +15,8 @@ export async function sendEmail(email: Email): Promise<void> {
 	throw new Error("Real email delivery is not configured yet.");
 
 }
+
+// Fire and forget: used after the response is sent, so it can never change that response
+export function sendEmailInBackground(email: Email): void {
+	void sendEmail(email).catch(err => console.error("Email send failed", err));
+}
