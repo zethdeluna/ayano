@@ -32,7 +32,7 @@ export async function issueToken(client: PoolClient, userId: string, purpose: To
 
 }
 
-// Read-only: whose link is this? Does NOT consume it.
+// Read-only: whose link is this? Does NOT consume it. 
 export async function findTokenOwner(token: string, purpose: TokenPurpose) {
 
 	const { rows } = await pool.query(

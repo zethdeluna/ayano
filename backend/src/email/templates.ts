@@ -36,3 +36,45 @@ export function alreadyRegisteredMessage(to: string): Email {
 	};
 
 }
+
+export function resetPasswordMessage(to: string, token: string): Email {
+
+	const link = `${config.APP_BASE_URL}/reset-password?token=${encodeURIComponent(token)}`;
+
+	const date = new Date(Date.now());
+	const formattedDate = new Intl.DateTimeFormat('en-US', {
+		month: 'short', 
+		day: 'numeric', 
+		year: 'numeric', 
+		hour: 'numeric', 
+		minute: '2-digit'
+	}).format(date);
+
+	return {
+		to, 
+		subject: "Reset your password", 
+		text: [
+			`Someone asked to reset the password for this account at ${formattedDate}. To choose a new one, open:`,
+			"",
+			link, 
+			"", 
+			"The link expires in 30 minutes and works once.", 
+			"If you did not ask for this, ignore this email. Your password has not changed."
+		].join("\n")
+	};
+
+}
+
+export function passwordChangedMessage(to: string): Email {
+
+	return {
+		to, 
+		subject: "Your password was changed", 
+		text: [
+			"The password for your account was just changed, and you have been signed out everywhere.", 
+			"", 
+			`If this was you, no action is needed. If it was not, reset your password now: ${config.APP_BASE_URL}/forgot-password`
+		].join("\n")
+	};
+
+}

@@ -1,27 +1,20 @@
 import { Router } from "express";
 import { pool } from "../db/pool.js";
-import { RegisterBody, LoginBody } from "../schemas/auth.js";
+import { RegisterBody, LoginBody, ForgotPasswordBody, ResetPasswordBody, ChangePasswordBody } from "../schemas/auth.js";
 import { checkPasswordPolicy, hashPassword } from "../auth/password.js";
 import { isBreached } from "../auth/breach.js";
-import { checkCredentials } from "../auth/credentials.js";
+import { checkCredentials, replacePassword } from "../auth/credentials.js";
 import { createSession, invalidateSession, type AuthUser } from "../auth/sessions.js";
 import { SESSION_COOKIE, setSessionCookie, clearSessionCookie } from "../auth/cookie.js";
 import { authenticate } from "../middleware/authenticate.js";
-import { 
-	registerLimiter, 
-	loginIpLimiter, 
-	loginEmailLimiter, 
-	registerEmailLimiter, 
-	verifyLimiter, 
-	resendMinuteLimiter, 
-	resendDayLimiter 
-} from "../middleware/rateLimits.js";
+import { registerLimiter, loginIpLimiter, loginEmailLimiter, registerEmailLimiter, verifyLimiter, resendMinuteLimiter, resendDayLimiter, forgotIpLimiter, forgotEmailLimiter, resetLimiter, passwordChangeLimiter } from "../middleware/rateLimits.js";
 import { withTransaction } from "../db/pool.js";
 import { issueToken, findTokenOwner, consumeToken } from "../auth/tokens.js";
 import { verifyPassword, DUMMY_HASH } from "../auth/password.js";
 import { VerifyEmailBody } from "../schemas/auth.js";
 import { sendEmailInBackground } from "../email/send.js";
-import { verifyEmailMessage, alreadyRegisteredMessage } from "../email/templates.js";
+import { verifyEmailMessage, alreadyRegisteredMessage, passwordChangedMessage } from "../email/templates.js";
+import { requestPasswordReset } from "../auth/recovery.js";
 
 export const authRouter = Router();
 
@@ -46,6 +39,11 @@ const UPSERT_USER_SQL = `
 		WHERE users.email_verified_at IS NULL 
 	RETURNING id
 `;
+
+const INVALID_LINK = {
+	error: "This reset link is not valid or has expired.", 
+	code: "INVALID_LINK"
+} as const;
 
 // POST /api/auth/register
 authRouter.post("/register", registerLimiter, async (req, res, next) => {
@@ -256,6 +254,175 @@ authRouter.post("/resend-verification", authenticate, resendMinuteLimiter, resen
 		const token = await withTransaction(client => issueToken(client, user.id, "verify_email"));
 		res.status(202).json({ message: "Check your email." });
 		sendEmailInBackground(verifyEmailMessage(user.email, token));
+
+	} catch (err) {
+		next(err);
+	}
+
+});
+
+// POST /api/auth/forgot-password
+authRouter.post("/forgot-password", forgotIpLimiter, forgotEmailLimiter, async (req, res, next) => {
+
+	try {
+
+		const parsed = ForgotPasswordBody.safeParse(req.body);
+		if ( !parsed.success ) {
+
+			res.status(400).json({ error: "Enter your email address." });
+			return;
+
+		}
+
+		// The same answer in every case, sent before anything account-specific happens
+		res.status(202).json({ message: "If an account exists for that email, we have sent a link to reset the password." });
+
+		void requestPasswordReset(parsed.data.email).catch(err => console.error("Password reset request failed", err));
+
+	} catch (err) {
+		next(err);
+	}
+
+});
+
+// POST /api/auth/reset-password
+authRouter.post("/reset-password", resetLimiter, async (req, res, next) => {
+
+	try {
+
+		const parsed = ResetPasswordBody.safeParse(req.body);
+		if ( !parsed.success ) {
+
+			res.status(400).json({ error: "Invalid request." });
+			return;
+
+		}
+
+		const { token, password } = parsed.data;
+
+		// 1. Cheap check first: Is this a live reset link?
+		if ( !(await findTokenOwner(token, "reset_password")) ) {
+
+			res.status(400).json(INVALID_LINK);
+			return;
+
+		}
+
+		// 2. The new password must pass the rules BEFORE the link is spent, so the user can retry
+		const policyError = checkPasswordPolicy(password);
+		if ( policyError ) {
+
+			res.status(400).json({ error: policyError, code: "WEAK_PASSWORD" });
+			return;
+
+		}
+
+		if ( await isBreached(password) ) {
+
+			res.status(400).json({
+				error: "That password appears in known data breaches. Choose another.", 
+				code: "WEAK_PASSWORD"
+			});
+			return;
+
+		}
+
+		// 3. Slow work outside the transaction
+		const passwordHash = await hashPassword(password);
+
+		// 4. Spend the link and change the password together, or neither
+		const email = await withTransaction(async client => {
+
+			const userId = await consumeToken(client, token, "reset_password");
+			if ( !userId ) return null;
+
+			return replacePassword(client, userId, passwordHash, { markVerified: true });
+
+		});
+
+		if ( !email ) {
+
+			res.status(400).json(INVALID_LINK);
+			return;
+
+		}
+
+		res.json({ message: "Password updated. Log in with your new password." });
+		sendEmailInBackground(passwordChangedMessage(email));
+
+	} catch (err) {
+		next(err);
+	}
+
+});
+
+// POST /api/auth/change-password
+authRouter.post("/change-password", authenticate, passwordChangeLimiter, async (req, res, next) => {
+
+	try {
+
+		const user = req.user;
+		if ( !user ) {
+
+			res.status(401).json({ error: "Not signed in" });
+			return;
+
+		}
+
+		const parsed = ChangePasswordBody.safeParse(req.body);
+		if ( !parsed.success ) {
+
+			res.status(400).json({ error: "Invalid request." });
+			return;
+
+		}
+
+		const { currentPassword, newPassword } = parsed.data;
+
+		// Prove the person knows the current password, not just that a session exists
+		const { rows } = await pool.query("SELECT password_hash FROM users WHERE id = $1", [user.id]);
+		if ( !( await verifyPassword(rows[0]?.password_hash ?? DUMMY_HASH, currentPassword) ) ) {
+
+			res.status(400).json({ error: "Current password is incorrect.", code: "WRONG_PASSWORD" });
+			return;
+
+		}
+
+		if ( newPassword === currentPassword ) {
+
+			res.status(400).json({ error: "Choose a different password.", code: "WEAK_PASSWORD" });
+			return;
+
+		}
+
+		const policyError = checkPasswordPolicy(newPassword);
+		if ( policyError ) {
+
+			res.status(400).json({ policyError, code: "WEAK_PASSWORD" });
+			return;
+
+		}
+
+		if ( await isBreached(newPassword) ) {
+
+			res.status(400).json({ 
+				error: "This password appears in known data breaches. Choose another.", 
+				code: "WEAK_PASSWORD"
+			});
+			return;
+
+		}
+
+		// Create new hash and replace the old password
+		const newHash = await hashPassword(newPassword);
+		const email = await withTransaction(client => replacePassword(client, user.id, newHash, { markVerified: true }));
+
+		// Delete every live session, including this one, then issue a fresh token for this browser
+		const { token, expiresAt } = await createSession(user.id);
+		setSessionCookie(res, token, expiresAt);
+
+		res.json({ message: "Password updated." });
+		sendEmailInBackground(passwordChangedMessage(email));
 
 	} catch (err) {
 		next(err);
